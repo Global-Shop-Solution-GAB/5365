@@ -1,0 +1,130 @@
+Program.Sub.ScreenSU.Start
+Gui.Form..Create
+Gui.Form..Caption("Router Changes (VIEW)")
+Gui.Form..Size(15360,10695)
+Gui.Form..MinX(0)
+Gui.Form..MinY(0)
+Gui.Form..Position(0,0)
+Gui.Form..BackColor(-2147483633)
+Gui.Form..MinButton(False)
+Gui.Form..MousePointer(0)
+Gui.Form..Sizeable(False)
+Gui.Form..MaxButton(False)
+Gui.Form..Event(UnLoad,Form_UnLoad)
+Gui.Form.txt1.Create(TextBox,"",True,2205,300,0,405,360,True,0,"Arial",8,-2147483643,1)
+Gui.Form.txt1.Locked(True)
+Gui.Form.cmd1.Create(Button)
+Gui.Form.cmd1.Size(465,375)
+Gui.Form.cmd1.Position(2760,315)
+Gui.Form.cmd1.Caption("^")
+Gui.Form.cmd1.Event(Click,cmdBrws_Click)
+Gui.Form.GsGridChanges.Create(GsGridControl)
+Gui.Form.GsGridChanges.Size(14280,8820)
+Gui.Form.GsGridChanges.Position(420,840)
+Gui.Form.lbl1.Create(Label,"Select Router",True,1935,255,0,390,150,True,0,"Arial",8,-2147483633,0)
+Gui.Form.lbl2.Create(Label,"Label",True,3690,255,0,3600,450,True,0,"Arial",8,-2147483633,0)
+Gui.Form.chk1.Create(CheckBox)
+Gui.Form.chk1.Size(3480,360)
+Gui.Form.chk1.Position(3615,15)
+Gui.Form.chk1.Caption("Browse for Deleted Routers")
+Program.Sub.ScreenSU.End
+
+Program.Sub.Preflight.Start
+Program.Sub.Preflight.End
+
+Program.Sub.Main.Start
+'coded by SFF for Thompson Surgical On-site Programming
+' quote 10936
+' this will allow for selection of a single router and the grid below will display router changes from v_ROUTER_CHANGES order by Date/Time Desc
+F.Intrinsic.Control.Try
+V.Local.sError.Declare(String," ")
+'show form
+gui.Form.lbl2.Caption("")
+gui.Form..Show
+gui.Form.cmd1.SetFocus
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+		F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_5365_Router_Change_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+
+Program.Sub.Main.End
+
+Program.Sub.cmdBrws_Click.Start
+'browse for router/rev
+F.Intrinsic.Control.Try
+
+V.Local.sError.Declare(String," ")
+v.Local.sRet.Declare(String)
+v.Local.sTemp.Declare(String)
+v.Local.sSQl.Declare(String)
+v.local.iWidths.Declare(long)
+v.Local.stitles.Declare(String)
+
+f.Intrinsic.Control.If(v.Screen.Form!chk1.Value,=,1)
+	'select from deleted routers.
+	f.Intrinsic.String.Build("Select Distinct substring(router,1,17) as {0}Router-{0}, Substring(Router,18,3) as Rev from v_ROUTER_CHANGES where ROUTER not in (Select ROUTER from v_ROUTER_HEADER)",v.Ambient.DblQuote,v.Local.sSQl)
+	Function.Intrinsic.String.Split("Router*!*Rev","*!*",variable.local.sTitles)
+	Function.Intrinsic.String.Split("1000*!*800","*!*",v.local.iWidths)
+	f.ODBC.Connection!conX.openConnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+	Function.Intrinsic.UI.Browser("Select a Router","conx",v.Local.sSQl,Variable.Local.sTitles,Variable.Local.iWidths,Variable.Local.sRet)
+	f.ODBC.Connection!conX.Close
+f.Intrinsic.Control.Else
+	'if not browsing for deleted routers, call standard browswer
+	Function.Intrinsic.UI.Browser(2700, "", Variable.Local.sRet)
+f.Intrinsic.Control.EndIf
+
+
+Function.Intrinsic.Control.If(Variable.Local.sRet,<>,"***CANCEL***")
+	'if return is sent from browser, then load screen with part, description and load datatable and gridview.
+	f.Intrinsic.String.Split(v.Local.sRet,"*!*",v.Local.sRet)
+	f.Intrinsic.String.Build("{0}{1}",v.Local.sRet(0),v.Local.sRet(1), v.Local.sTemp)
+	gui.Form.txt1.Text(v.Local.sTemp)
+	f.Intrinsic.Control.If(v.Screen.Form!chk1.Value,<>,1)
+		gui.Form.lbl2.Caption(v.Local.sRet(2).trim)
+	f.Intrinsic.Control.Else	
+		gui.Form.lbl2.Caption("Description NOT Available for Deleted Router Header")
+	f.Intrinsic.Control.EndIf
+	
+	f.Intrinsic.String.Build("Select CHANGE_DATE,CHANGE_TIME,ROUTER,ACTION,FIELD_NAME,F_BEFORE as {1}BEFORE{1},F_AFTER as {1}AFTER{1},CHANGE_USER from V_ROUTER_CHANGES where ROUTER = '{0}'",v.Local.sTemp.Trim,v.Ambient.DblQuote,v.Local.sSQl)
+	f.ODBC.Connection!conX.openConnection(v.Ambient.PDSN,v.Ambient.PUser,v.Ambient.PPass)
+	f.Data.DataTable.CreateFromSQL("R_Changes","conX",v.Local.sSQl)
+	'if no data in the table, just display a message and highligh yellow.
+	f.Intrinsic.Control.If(v.DataTable.R_Changes.RowCount--,=,-1)
+		gui.Form.lbl2.Caption("NO CHANGES LOGGED")
+		gui.Form.lbl2.BackColor(v.Color.Yellow)
+	f.Intrinsic.Control.Else
+		gui.Form.lbl2.BackColor(-2147483633)
+	f.Intrinsic.Control.EndIf
+	'add gridview
+	gui.Form.GsGridChanges.AddGridviewFromDatatable("gv_Changes","R_Changes")
+	gui.Form.GsGridChanges.SetGridviewProperty("gv_Changes","ReadOnly","True")
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","AllowSort",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","AllowFilter",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","Showgrouppanel",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","AllowColumnResizing",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","Enableappearanceoddrow",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","OptionsFindAlwaysVisible",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","OptionsViewShowAutoFilterRow",True)
+	Gui.Form.GsGridChanges.SetGridViewProperty("gv_Changes","OptionsFilterUseNewCustomFilterDialog",True)
+	gui.Form.GsGridChanges.MainView("gv_Changes")
+	gui.Form.GsGridChanges.ResumeLayout
+	f.Data.DataTable.Close("R_Changes")
+	f.ODBC.Connection!conX.Close
+f.Intrinsic.Control.EndIf
+
+f.Intrinsic.Control.ExitSub
+
+F.Intrinsic.Control.Catch
+	F.Intrinsic.Control.If(V.Ambient.ErrorNumber,<>,0)
+		F.Intrinsic.String.Build("Project: {0}{1}Subroutine: {2}{1}Error Occurred {3} with description {4}","GCG_5365_Router_Change_View.g2u",V.Ambient.NewLine,V.Ambient.CurrentSubroutine,V.Ambient.ErrorNumber,V.Ambient.ErrorDescription,V.Local.sError)
+		F.Intrinsic.UI.Msgbox(V.Local.sError)
+	F.Intrinsic.Control.EndIf
+Function.Intrinsic.Control.EndTry
+Program.Sub.cmdBrws_Click.End
+
+Program.Sub.Form_UnLoad.Start
+f.Intrinsic.Control.End
+Program.Sub.Form_UnLoad.End
